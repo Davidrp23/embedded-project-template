@@ -13,7 +13,7 @@
 
 ## Requisitos previos
 
-- **nRF Connect SDK** v2.x instalado ([guía de instalación](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/installation.html))
+- **nRF Connect SDK** v3.x instalado ([guía de instalación](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/installation.html))
 - **VS Code** con la extensión **nRF Connect for VS Code**
 - **nRF5340 DK** (placa de desarrollo)
 - Cable USB para conexión y alimentación de la placa

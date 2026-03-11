@@ -45,7 +45,7 @@ Categorías comunes: Rendimiento, Energía, Fiabilidad, Mantenibilidad, Segurida
 ## Restricciones
 
 - Hardware: nRF5340 DK, [sensor/periférico externo]
-- SDK: nRF Connect SDK v2.x / Zephyr RTOS
+- SDK: nRF Connect SDK v3.x / Zephyr RTOS
 - Comunicación: BLE 5.x (si aplica)
 - [Otras restricciones de hardware, protocolo, o normativa]
 
