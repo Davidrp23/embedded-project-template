@@ -1,6 +1,7 @@
-# [Nombre del Proyecto]
+# Sistema Biométrico de Autenticación por Espectroscopía de Impedancia
 
-[Descripción breve del proyecto en 2-3 oraciones. Qué hace, qué hardware usa, qué problema resuelve.]
+Desarrollar un sistema de lectura biométrica mediante espectroscopia de impedancia en el que el nRF5340dk(microControlador) y AD5940(módulo que mide la impedancia) se comuniquen mediante SPI.
+
 
 ## Equipo
 
