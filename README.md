@@ -4,12 +4,12 @@
 
 ## Equipo
 
-| Nombre          | Rol                  | GitHub          |
-|-----------------|----------------------|-----------------|
-| [Nombre]        | [Rol]                | @usuario        |
-| [Nombre]        | [Rol]                | @usuario        |
-| [Nombre]        | [Rol]                | @usuario        |
-| [Nombre]        | [Rol]                | @usuario        |
+| Nombre                            | Rol                  | GitHub          |
+|-----------------------------------|----------------------|-----------------|
+| Sergio García-Mier García         | [Rol]                | @Sergiogargar   |
+| David Romero Pérez                | [Rol]                | @Davidrp23      |
+| Alejandro Tenoch Del Valle Ropero | [Rol]                | @aletenoch24    |
+| Riccardo Pizzaleo                 | [Rol]                | @pizzri         |
 
 ## Requisitos previos
 
