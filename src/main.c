@@ -1,43 +1,30 @@
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include "ad5940.h"
-#include "BodyImpedance.h" // ¡Asegúrate de descargar este archivo de ADI!
+#include "BodyImpedance.h"
 
-LOG_MODULE_REGISTER(main_biometria, LOG_LEVEL_INF);
+LOG_MODULE_REGISTER(bia_app, LOG_LEVEL_INF);
 
 #define APPBUFF_SIZE 512
-uint32_t AppBuff[APPBUFF_SIZE];
+static uint32_t AppBuff[APPBUFF_SIZE];
 
-/**
- * @brief Procesa y muestra los resultados obtenidos por la interrupción
- */
-static void BIAShowResult(uint32_t *pData, uint32_t DataCount)
-{
-    float freq;
-    fImpPol_Type *pImp = (fImpPol_Type*)pData;
-    
-    AppBIACtrl(BIACTRL_GETFREQ, &freq);
-    LOG_INF("Frecuencia de prueba: %.2f Hz", freq);
+/* Externs del port y la app */
+extern uint32_t AD5940_MCUResourceInit(void *pCfg);
 
-    for(int i = 0; i < DataCount; i++) {
-        LOG_INF("Magnitud: %f Ohm | Fase: %f grados", 
-                pImp[i].Magnitude, 
-                pImp[i].Phase * 180 / MATH_PI);
-    }
-}
-
-/**
- * @brief Configuración inicial del hardware y los relojes
- */
+/* --- Configuración de la plataforma con Trazas de Control --- */
 static int32_t AD5940PlatformCfg(void)
 {
     CLKCfg_Type clk_cfg;
     FIFOCfg_Type fifo_cfg;
+    AGPIOCfg_Type gpio_cfg;
 
+    LOG_INF("  [Punto A] Ejecutando HWReset...");
     AD5940_HWReset();
+    
+    LOG_INF("  [Punto B] Ejecutando AD5940_Initialize...");
     AD5940_Initialize();
 
-    /* 1. Configurar reloj a 16MHz */
+    LOG_INF("  [Punto C] Configurando Reloj...");
     clk_cfg.ADCClkDiv = ADCCLKDIV_1;
     clk_cfg.ADCCLkSrc = ADCCLKSRC_HFOSC;
     clk_cfg.SysClkDiv = SYSCLKDIV_1;
@@ -48,94 +35,92 @@ static int32_t AD5940PlatformCfg(void)
     clk_cfg.LFOSCEn = bTRUE;
     AD5940_CLKCfg(&clk_cfg);
 
-    /* 2. Configurar el FIFO para recibir los resultados de la Transformada de Fourier (DFT) */
+    LOG_INF("  [Punto D] Configurando FIFO...");
     fifo_cfg.FIFOEn = bFALSE;
     fifo_cfg.FIFOMode = FIFOMODE_FIFO;
-    fifo_cfg.FIFOSize = FIFOSIZE_4KB; 
+    fifo_cfg.FIFOSize = FIFOSIZE_4KB;
     fifo_cfg.FIFOSrc = FIFOSRC_DFT;
-    fifo_cfg.FIFOThresh = 4;
-    AD5940_FIFOCfg(&fifo_cfg); // Apagar para limpiar
+    fifo_cfg.FIFOThresh = 4; 
+    AD5940_FIFOCfg(&fifo_cfg);
     fifo_cfg.FIFOEn = bTRUE;  
-    AD5940_FIFOCfg(&fifo_cfg); // Encender
-
-    /* 3. Habilitar interrupciones */
+    AD5940_FIFOCfg(&fifo_cfg);
+    
+    LOG_INF("  [Punto E] Configurando Interrupt Controller...");
     AD5940_INTCCfg(AFEINTC_1, AFEINTSRC_ALLINT, bTRUE);
     AD5940_INTCCfg(AFEINTC_0, AFEINTSRC_DATAFIFOTHRESH, bTRUE);
     AD5940_INTCClrFlag(AFEINTSRC_ALLINT);
 
-    AD5940_SleepKeyCtrlS(SLPKEY_UNLOCK);
+    LOG_INF("  [Punto F] Configurando AGPIOs...");
+    gpio_cfg.FuncSet = GP6_SYNC|GP5_SYNC|GP4_SYNC|GP2_TRIG|GP1_SYNC|GP0_INT;
+    gpio_cfg.InputEnSet = AGPIO_Pin2;
+    gpio_cfg.OutputEnSet = AGPIO_Pin0|AGPIO_Pin1|AGPIO_Pin4|AGPIO_Pin5|AGPIO_Pin6;
+    gpio_cfg.OutVal = 0;
+    gpio_cfg.PullEnSet = 0;
+    AD5940_AGPIOCfg(&gpio_cfg);
+
+    AD5940_SleepKeyCtrlS(SLPKEY_UNLOCK); 
     return 0;
 }
 
-/**
- * @brief Configuración de los parámetros del barrido de bioimpedancia
- */
-static void AD5940BIAStructInit(void)
+void main(void)
 {
+    uint32_t temp;
     AppBIACfg_Type *pBIACfg;
+
+    LOG_INF("=== PASO 1: Inicializando MCU Resource ===");
+    if (AD5940_MCUResourceInit(NULL) != 0) {
+        LOG_ERR("Fallo crítico en MCUResourceInit");
+        return;
+    }
+
+    LOG_INF("=== PASO 2: Entrando en AD5940PlatformCfg ===");
+    AD5940PlatformCfg();
+    LOG_INF("=== PASO 3: Configuración de plataforma OK ===");
+
+    LOG_INF("=== PASO 4: Obteniendo Cursors de BIA ===");
     AppBIAGetCfg(&pBIACfg);
-  
     pBIACfg->SeqStartAddr = 0;
     pBIACfg->MaxSeqLen = 512;
-    pBIACfg->RcalVal = 10000.0;     /* Resistencia de calibración (10k Ohm típicos) */
-    pBIACfg->DftNum = DFTNUM_8192;  /* Precisión de la DFT */
-    pBIACfg->NumOfData = -1;        /* Bucle infinito */
-    pBIACfg->BiaODR = 20;           /* Tasa de muestreo (20 Hz) */
+    pBIACfg->RcalVal = 10000.0;
+    pBIACfg->DftNum = DFTNUM_8192;
+    pBIACfg->NumOfData = -1;
+    pBIACfg->BiaODR = 20;
     pBIACfg->FifoThresh = 4;
     pBIACfg->ADCSinc3Osr = ADCSINC3OSR_2;
-}
 
-int main(void)
-{
-    uint32_t temp_size;
-    k_msleep(2000); 
-
-    printk("\r\n===========================================\r\n");
-    printk("HOLA! El programa entro a la funcion MAIN.\r\n");
-    printk("===========================================\r\n");
-
-    LOG_INF("Iniciando medición BIA...");
-
-    /* 1. Inicializar recursos del nRF5340 (pines e interrupciones) */
-    if (AD5940_MCUResourceInit(NULL) != 0) {
-        LOG_ERR("Fallo en MCUResourceInit");
-        return -1;
-    }
-
-    /* 2. Reset por hardware para despertar al sensor */
-    AD5940_HWReset();
-    k_msleep(100); /* Damos 100ms para que el chip respire */
-
-    /* 3. LA PRUEBA DE FUEGO: Leer el CHIP ID */
-    uint32_t chip_id = AD5940_GetChipID();
-    LOG_INF(">>> CHIP ID Leido: 0x%04x <<<", chip_id);
-
-    if (chip_id != 0x5501 && chip_id != 0x5502) {
-        LOG_ERR("ERROR FATAL: El SPI no funciona. Revisa los 6 cables.");
-        LOG_ERR("El programa se detiene aqui para que no salgan ceros.");
-        while(1) { k_msleep(1000); } /* Bucle infinito para bloquear la placa */
-    }
-
-    LOG_INF("¡EXITO! El sensor responde perfectamente. Configuracion BIA...");
-
-    /* Si llegamos aquí, el SPI va perfecto. Seguimos con el programa */
-    AD5940PlatformCfg();
-    AD5940BIAStructInit();
-
+    LOG_INF("=== PASO 5: Entrando en AppBIAInit (Escritura de Sequencer) ===");
     AppBIAInit(AppBuff, APPBUFF_SIZE);
+    LOG_INF("=== PASO 6: AppBIAInit OK ===");
+
+    LOG_INF("=== PASO 7: Ejecutando AppBIACtrl START ===");
     AppBIACtrl(BIACTRL_START, 0);
- 
-    while (1) {
-        if (AD5940_GetMCUIntFlag()) {
+    LOG_INF("=== PASO 8: Todo el sistema arrancado ===");
+
+    while(1) {
+        if(AD5940_GetMCUIntFlag()) {
             AD5940_ClrMCUIntFlag();
-            temp_size = APPBUFF_SIZE;
-            AppBIAISR(AppBuff, &temp_size); 
+            temp = APPBUFF_SIZE;
+            AppBIAISR(AppBuff, &temp); 
             
-            if (temp_size > 0) {
-                BIAShowResult(AppBuff, temp_size);
+            fImpPol_Type *pImp = (fImpPol_Type*)AppBuff;
+            for(int i=0; i<temp; i++) {
+                LOG_INF("Impedancia: %.2f Ohm | Fase: %.2f deg", 
+                        pImp[i].Magnitude, 
+                        pImp[i].Phase * 180 / 3.14159);
             }
         }
-        k_yield(); 
+
+        static uint32_t diag_tick = 0;
+        if(++diag_tick % 100 == 0) {
+            uint32_t fifo_cnt = AD5940_ReadReg(REG_AFE_FIFOCON);
+            uint32_t isr_status = AD5940_ReadReg(REG_INTC_INTCFLAG0); 
+            uint32_t afe_stat = AD5940_ReadReg(REG_AFE_PSWSTA);        
+            
+            LOG_INF("--- DIAGNOSTICO BIA ---");
+            LOG_INF("FIFO Count: %d", fifo_cnt);
+            LOG_INF("Interrupt Flag (INTC0): 0x%08x", isr_status);
+            LOG_INF("AFE Status: 0x%08x", afe_stat);
+        }
+        k_sleep(K_MSEC(10));
     }
-    return 0;
 }
