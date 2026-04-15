@@ -11,6 +11,7 @@ Analog Devices Software License Agreement.
  
 *****************************************************************************/
 #include "BodyImpedance.h"
+#include <zephyr/sys/printk.h>
 
 /* 
   Application configuration structure. Specified by user from template.
@@ -483,6 +484,7 @@ AD5940Err AppBIAInit(uint32_t *pBuffer, uint32_t BufferSize)
   AD5940_ClrMCUIntFlag();   /* Clear interrupt flag generated before */
 
   AD5940_AFEPwrBW(AppBIACfg.PwrMod, AFEBW_250KHZ);
+  /* La siguiente línea es para el modo común de ECG y no debe usarse en BIA. */
   AD5940_WriteReg(REG_AFE_SWMUX, 1<<3);
   AppBIACfg.BIAInited = bTRUE;  /* BIA application has been initialized. */
   return AD5940ERR_OK;
@@ -547,6 +549,11 @@ static AD5940Err AppBIADataProcess(int32_t * const pData, uint32_t *pDataCount)
     VoltPhase = atan2(-pDftVolt->Image,pDftVolt->Real);
     CurrMag = sqrt((float)pDftCurr->Real*pDftCurr->Real+(float)pDftCurr->Image*pDftCurr->Image);
     CurrPhase = atan2(-pDftCurr->Image,pDftCurr->Real);
+    
+    /* DEBUG: Si el voltaje crudo es 0, el problema está en las conexiones/switches físicos */
+    if (i == 0) {
+        printk("DEBUG - VoltMag crudo: %f | CurrMag crudo: %f | RtiaCal: %f\n", (double)VoltMag, (double)CurrMag, (double)AppBIACfg.RtiaCurrValue[0]);
+    }
 
     VoltMag = VoltMag/CurrMag*AppBIACfg.RtiaCurrValue[0];
     VoltPhase = VoltPhase - CurrPhase + AppBIACfg.RtiaCurrValue[1];

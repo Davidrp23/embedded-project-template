@@ -97,6 +97,9 @@ void main(void)
     LOG_INF("=== PASO 8: Todo el sistema arrancado ===");
 
     while(1) {
+
+        //LOG_INF("AD5940_GetMCUIntFlag() VALUE: %d", AD5940_GetMCUIntFlag());
+        
         if(AD5940_GetMCUIntFlag()) {
             AD5940_ClrMCUIntFlag();
             temp = APPBUFF_SIZE;
@@ -106,20 +109,20 @@ void main(void)
             for(int i=0; i<temp; i++) {
                 LOG_INF("Impedancia: %.2f Ohm | Fase: %.2f deg", 
                         pImp[i].Magnitude, 
-                        pImp[i].Phase * 180 / 3.14159);
+                        pImp[i].Phase * 180 / 3.14159); //Revisar
             }
         }
 
         static uint32_t diag_tick = 0;
         if(++diag_tick % 100 == 0) {
-            uint32_t fifo_cnt = AD5940_ReadReg(REG_AFE_FIFOCON);
+            uint32_t fifo_cnt = AD5940_FIFOGetCnt();
             uint32_t isr_status = AD5940_ReadReg(REG_INTC_INTCFLAG0); 
             uint32_t afe_stat = AD5940_ReadReg(REG_AFE_PSWSTA);        
             
             LOG_INF("--- DIAGNOSTICO BIA ---");
             LOG_INF("FIFO Count: %d", fifo_cnt);
             LOG_INF("Interrupt Flag (INTC0): 0x%08x", isr_status);
-            LOG_INF("AFE Status: 0x%08x", afe_stat);
+            LOG_INF("Switch Matrix (PSWSTA): 0x%08x", afe_stat);
         }
         k_sleep(K_MSEC(10));
     }
